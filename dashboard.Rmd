@@ -2,17 +2,45 @@
 title: "dashboard"
 author: "LAASSAIRI Abdellah"
 date: "2022-12-17"
-output: html_document
+output: 
+  flexdashboard::flexdashboard
+    orientation:columns
+    vartical_layout:fill
 ---
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
 library(shiny)
-library(leaflet)
 library(stringr)
 library(ggplot2)
+library(dplyr)
+library(plotly)
+
 ```
 
 ```{r}
 df=read.csv("data/thyroid.csv")
+head(df)
+```
+
+```{r}
+#df$patient_gender=as.factor(as.character(df$patient_gender))
+z=count(df,patient_gender)
+z=data.frame(z)
+z$patient_gender=as.character(z$patient_gender)
+```
+
+g
+
+```{r}
+ g<-ggplot(z, aes(x=patient_gender, y=n, fill=patient_gender) ) +
+  geom_bar(stat="identity", width=1) +
+  theme_bw() 
+
+
+```
+
+```{r}
+fig <- ggplotly(g, 512,512)
+fig
 ```
