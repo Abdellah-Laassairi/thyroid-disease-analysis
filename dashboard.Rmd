@@ -1,11 +1,7 @@
 ---
-title: "dashboard"
+title: "Thyroid Analysis dashboard"
 author: "LAASSAIRI Abdellah"
 date: "2022-12-17"
-output: 
-  flexdashboard::flexdashboard
-    orientation:columns
-    vartical_layout:fill
 ---
 
 ```{r setup, include=FALSE}
@@ -24,23 +20,25 @@ head(df)
 ```
 
 ```{r}
-#df$patient_gender=as.factor(as.character(df$patient_gender))
-z=count(df,patient_gender)
-z=data.frame(z)
-z$patient_gender=as.character(z$patient_gender)
-```
-
-g
-
-```{r}
- g<-ggplot(z, aes(x=patient_gender, y=n, fill=patient_gender) ) +
-  geom_bar(stat="identity", width=1) +
-  theme_bw() 
-
-
+head(df)
 ```
 
 ```{r}
-fig <- ggplotly(g, 512,512)
+summary(df)
+```
+
+
+
+
+
+```{r}
+
 fig
+
 ```
+
+------------------------------------------------------------------------
+
+Column {data-width=650}
+
+### Chart A

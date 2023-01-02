@@ -1,0 +1,176 @@
+---
+title: "Thyroid dashboard"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    social: menu
+    source_code: https://gitlab.com/Abdellah-Laassairi/thyroid-disease-analysis
+    theme: 
+      version: 4
+      bootswatch: minty
+---
+
+```{r setup, include=FALSE, context = "server"}
+library(flexdashboard)
+library(shiny)
+library(shinyWidgets)
+library(glue)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(data.table)
+#bslib::bs_themer()
+
+```
+
+# Sidebar {.sidebar}
+
+```{r}
+# Define inputs
+selectInput('input_gender', label = 'Select Gender', choices = c('Male', 'Female'), selected = 'Male')
+sliderInput('input_age', label = 'Select Age', min = 1, max = 90, value = 50, 
+            step = 1)
+```
+
+```{r}
+raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
+raw_data$patient_age=as.numeric(raw_data$patient_age)
+raw_data$patient_gender=factor(raw_data$patient_gender)
+```
+
+# Patients
+
+
+Row
+---------------------------------------
+
+### Chart A
+```{r}
+
+
+
+```
+
+# Analysis
+
+## Column
+
+### Total number of patients
+
+```{r}
+nbPatients <-nrow(raw_data)
+valueBox(nbPatients, icon = "fa-heartbeat")
+```
+
+### Total number of features
+
+```{r}
+nbFeatures <-ncol(raw_data)
+valueBox(nbFeatures, icon = "fa-stethoscope")
+```
+
+## Row 
+
+### Male percentage of sick patients
+
+```{r}
+rate <- 15
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Female percentage of sick patients
+
+```{r}
+rating <- 10
+gauge(rating, min = 0, max = 50, gaugeSectors(
+  success = c(41, 50), warning = c(21, 40), danger = c(0, 20)
+))
+```
+
+## Row {data-height=250}
+### Patient's age :
+
+```{r}
+fig<-ggplot(raw_data, aes(x=patient_age, color=patient_gender, fill=patient_gender)) + 
+ geom_histogram(aes(y=..density..), alpha=0.5, 
+                position="identity")+
+ geom_density(alpha=.2) 
+
+fig <- ggplotly(fig, 500,220)  %>% config(displayModeBar = F)
+fig
+```
+
+### Insights
+
+```{r}
+
+
+id='name'
+value=sum(is.na(raw_data$patient_age))
+total=nrow(raw_data)
+print(total)
+title= 'Percentage of missing values (NAs) :'
+progressBar(
+  id,
+  value,
+  total = total,
+  display_pct = TRUE,
+  size = 20,
+  status = "warning",
+  striped = FALSE,
+  title = title,
+  commas = TRUE,
+  unit_mark = "%"
+)
+summary(raw_data$patient_age)
+```
+
+## Row {data-height=270}
+
+### Patient's gender :
+
+```{r}
+
+z=count(raw_data,patient_gender)
+z=data.frame(z)
+z$patient_gender=as.character(z$patient_gender)
+
+g<-ggplot(z, aes(x=patient_gender, y=n, fill=patient_gender) ) +
+  geom_bar(stat="identity", width=1) +
+  theme_bw() 
+fig <- ggplotly(g, 500,250)  %>% config(displayModeBar = F)
+fig
+```
+
+### Insights
+
+```{r}
+
+id='name'
+value=sum(is.na(raw_data$patient_gender))
+total=nrow(raw_data)
+print(total)
+title= 'Percentage of missing values (NAs) :'
+progressBar(
+  id,
+  value,
+  total = total,
+  display_pct = TRUE,
+  size = 20,
+  status = "warning",
+  striped = FALSE,
+  title = title,
+  commas = TRUE,
+  unit_mark = "%"
+)
+summary(raw_data$patient_gender)
+```
+
+# Comparison
+
+## Row
