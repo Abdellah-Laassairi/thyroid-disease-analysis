@@ -1,0 +1,40 @@
+---
+title: "Thyroid Analysis dashboard"
+author: "LAASSAIRI Abdellah"
+date: "2022-12-17"
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+
+```
+
+```{r}
+df=read.csv("data/thyroid.csv")
+head(df)
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+summary(df)
+```
+
+```{r}
+
+fig
+
+```
+
+------------------------------------------------------------------------
+
+Column {data-width=650}
+
+### Chart A
