@@ -1,0 +1,257 @@
+---
+title: "Thyroid dashboard"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    source_code: https://gitlab.com/Abdellah-Laassairi/thyroid-disease-analysis
+    theme: 
+      version: 4
+      bootswatch: minty
+---
+
+```{r setup, include=FALSE, context = "server"}
+library(flexdashboard)
+library(shiny)
+library(shinyWidgets)
+library(glue)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(insight)
+library(data.table)
+library(qwraps2)
+library(rmarkdown)
+library(DT)
+library(dplyr)
+library(splitstackshape)
+
+library(ggthemes)
+
+
+#bslib::bs_themer()
+
+```
+
+# Sidebar {.sidebar}
+```{r}
+
+raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
+
+categorical_cols=c('patient_gender','presc_thyroxine','queried_why_on_thyroxine','presc_anthyroid_meds','sick','pregnant',
+              'radioactive_iodine_therapyI131','query_hypothyroid','query_hyperthyroid','lithium','goitre','tumor',
+              'hypopituitarism','psych_condition','thyrox_util_rate_T4U_measured','FTI_measured')
+
+numerical_cols=c('patient_age','TSH_measured','TSH_reading','T3_measured','T3_reading','T4_measured','T4_reading',
+                 'thyrox_util_rate_T4U_measured','thyrox_util_rate_T4U_reading','FTI_measured','FTI_reading')
+raw_data$patient_age=as.numeric(raw_data$patient_age)
+raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
+
+```
+
+```{r}
+# Define inputs
+selectInput('input_gender', label = 'Select Gender', choices = c('Male', 'Female'), selected = 'Male')
+sliderInput('input_age', label = 'Select Age', min = 1, max = 94, value = 50, 
+            step = 1)
+
+```
+
+```{r}
+
+reactive_df <- reactive(
+  raw_data %>% 
+    filter(patient_age > input$input_age)
+)
+```
+
+# Patients
+
+## Row{data-height="900"}
+
+### All patients
+
+```{r}
+renderDT(
+
+reactive_df() %>%
+  datatable(options = list(
+    pageLength=9
+  ),
+            class = "cell-border compact hover order-column")
+
+)
+```
+
+# Analysis
+
+## Column
+
+### Total number of patients
+
+```{r}
+nbPatients <-nrow(raw_data)
+valueBox(nbPatients, icon = "fa-heartbeat")
+```
+
+### Total number of features
+
+```{r}
+nbFeatures <-ncol(raw_data)
+valueBox(nbFeatures, icon = "fa-stethoscope")
+```
+
+## Row
+
+### Male percentage of sick patients
+
+```{r}
+rate <- 15
+gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Female percentage of sick patients
+
+```{r}
+rating <- 10
+gauge(rating, min = 0, max = 50, gaugeSectors(
+  success = c(41, 50), warning = c(21, 40), danger = c(0, 20)
+))
+```
+
+## Row {data-height="350"}
+
+### Numerical Variable :
+
+```{r}
+
+renderPlotly({
+
+p<-ggplot(reactive_df(),aes_string(x=input$input_numerical,color=input$input_numerical,fill='patient_gender'))+
+            geom_histogram(aes(y=..density..),alpha=0.5,position="identity")+
+            geom_density(alpha=.2)+theme_gdocs()
+ggplotly(p)%>% config(displayModeBar = F)
+})
+
+```
+
+### Insights
+
+```{r}
+
+selectInput('input_numerical', label = 'Select Numerical variable', choices = numerical_cols, selected = 'patient_age')
+
+id='name'
+value=sum(is.na(raw_data$patient_age))
+total=nrow(raw_data)
+title= 'Percentage of missing values (NAs) :'
+progressBar(
+  id,
+  value,
+  total = total,
+  display_pct = TRUE,
+  size = 100,
+  status = "warning",
+  striped = TRUE,
+  title = title,
+  commas = TRUE,
+  unit_mark = "%"
+)
+
+rename_dataframe <- function(df, name) {
+  colnames(df) <- name
+  return(df)
+}
+
+header.true <- function(df) {
+  colnames(df) <- df[1,]
+  df <- df[-1, ] 
+  rownames(df) <- NULL
+
+  return(df)
+}
+
+renderDT(
+reactive_df()%>%select(input$input_numerical) %>%summary()%>%
+  list() %>%do.call(what=cbind)%>% data.frame()%>%      rename_dataframe(input$input_numerical)%>%cSplit(input$input_numerical, ":")%>%
+  rename_dataframe(c('Summary', 'Values'))%>%t() %>%data.frame()%>%header.true()%>%
+
+  
+  datatable(
+    options = list(dom = 't'),
+    rownames= FALSE,
+
+    class = "cell-border compact hover order-column")
+
+)
+
+```
+
+## Row {data-height="270"}
+
+### Categorical Variable :
+
+```{r}
+
+renderPlotly({
+p<-ggplot(data=reactive_df(),aes_string(x=input$input_categorical, color=input$input_categorical, fill=input$input_categorical))+
+            geom_bar(aes(y=(..count..)),alpha=0.5,position="identity")+theme_gdocs()
+ggplotly(p)%>% config(displayModeBar = F)
+})
+```
+
+### Insights
+
+```{r}
+selectInput('input_categorical', label = 'Select Categorical variable', choices = categorical_cols, selected = 'patient_gender')
+
+id='name'
+value=sum(is.na(raw_data$patient_gender))
+total=nrow(raw_data)
+
+title= 'Percentage of missing values (NAs) :'
+progressBar(
+  id,
+  value,
+  total = total,
+  display_pct = TRUE,
+  size = 20,
+  status = "warning",
+  striped = FALSE,
+  title = title,
+  commas = TRUE,
+  unit_mark = "%"
+)
+renderDT(
+reactive_df()%>%select(input$input_categorical) %>%summary()%>%
+  list() %>%do.call(what=cbind)%>% data.frame()%>%      rename_dataframe(input$input_categorical)%>%cSplit(input$input_categorical, ":")%>%
+  rename_dataframe(c('Summary', 'Values'))%>%t() %>%data.frame()%>%header.true()%>%
+
+  
+  datatable(
+    options = list(dom = 't'),
+    rownames= FALSE,
+
+    class = "cell-border compact hover order-column")
+
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+# Comparison
+
+## Row
