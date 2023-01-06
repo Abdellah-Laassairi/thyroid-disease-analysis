@@ -8,7 +8,7 @@ output:
     source_code: https://gitlab.com/Abdellah-Laassairi/thyroid-disease-analysis
     theme: 
       version: 4
-      bootswatch: minty
+      bootswatch: united
 ---
 
 ```{r setup, include=FALSE, context = "server"}
@@ -27,8 +27,9 @@ library(rmarkdown)
 library(DT)
 library(dplyr)
 library(splitstackshape)
-
 library(ggthemes)
+library(purrr)
+library(tidyr)
 
 
 #bslib::bs_themer()
@@ -36,40 +37,126 @@ library(ggthemes)
 ```
 
 # Sidebar {.sidebar}
+
 ```{r}
 
 raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
 
+raw_data$ThryroidClass=as.factor(raw_data$ThryroidClas)
 categorical_cols=c('patient_gender','presc_thyroxine','queried_why_on_thyroxine','presc_anthyroid_meds','sick','pregnant',
               'radioactive_iodine_therapyI131','query_hypothyroid','query_hyperthyroid','lithium','goitre','tumor',
-              'hypopituitarism','psych_condition','thyrox_util_rate_T4U_measured','FTI_measured')
+              'hypopituitarism','psych_condition', 'thyrox_util_rate_T4U_measured','FTI_measured')
 
 numerical_cols=c('patient_age','TSH_measured','TSH_reading','T3_measured','T3_reading','T4_measured','T4_reading',
                  'thyrox_util_rate_T4U_measured','thyrox_util_rate_T4U_reading','FTI_measured','FTI_reading')
-raw_data$patient_age=as.numeric(raw_data$patient_age)
+
+
+raw_data$patient_age<-as.numeric(raw_data$patient_age)
 raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
 
 ```
 
 ```{r}
 # Define inputs
-selectInput('input_gender', label = 'Select Gender', choices = c('Male', 'Female'), selected = 'Male')
-sliderInput('input_age', label = 'Select Age', min = 1, max = 94, value = 50, 
+selectInput('input_gender', label = 'Select Gender', choices = c('Both'=-1, 'Male'=0, 'Female'=1), selected = 'All')
+
+sliderInput('input_age', label = 'Select Age Range', min = 1, max = 94, value = 50, 
             step = 1)
 
+awesomeCheckboxGroup(
+   inputId = "sick",
+   label = "Select if patient is sick : ", 
+    choices =  c("Sick"=1, "negative"=0),
+   inline = FALSE, 
+    status = "danger"
+)
+
+awesomeCheckboxGroup(
+   inputId = "tumor",
+   label = "Select if patient has tumor : ", 
+    choices =  c("True"=1, "False"=0),
+   inline = FALSE, 
+    status = "danger"
+)
+observe(
+  print(input$input_gender)
+)
 ```
 
 ```{r}
 
 reactive_df <- reactive(
-  raw_data %>% 
-    filter(patient_age > input$input_age)
+  
+  if(length(input$sick)==1)
+    if (length(input$tumor)==1 )
+        
+        if(input$input_gender==-1)
+          raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age,tumor==input$tumor, sick==input$sick )
+        else
+          raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor,sick==input$sick )
+    
+      else
+            
+        if(input$input_gender==-1)
+          raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age,sick==input$sick  )
+        else
+          raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender,sick==input$sick )
+  else 
+    
+    if (length(input$tumor)==1 )
+      
+      if(input$input_gender==-1)
+        raw_data<-raw_data %>% 
+        filter(patient_age <= input$input_age,tumor==input$tumor )
+      else
+        raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor)
+  
+    else
+          
+      if(input$input_gender==-1)
+        raw_data<-raw_data %>% 
+        filter(patient_age <= input$input_age )
+      else
+        raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age, patient_gender==input$input_gender)
 )
 ```
 
 # Patients
 
-## Row{data-height="900"}
+## Row {data-height="120"}
+
+### Number of patients
+
+```{r}
+renderValueBox(
+valueBox(nbPatients <-nrow(reactive_df()), icon = "fa-user-md")
+)
+
+```
+
+### Number of patients with Thyroid disease
+
+```{r}
+renderValueBox(
+valueBox(nrow(reactive_df()[reactive_df()$ThryroidClas == "sick", ]), icon = "fa-heartbeat")
+)
+```
+
+### Number of features
+
+```{r}
+renderValueBox(
+valueBox(nbPatients <-ncol(reactive_df()), icon = 'fas fa-stethoscope')
+)
+```
+
+## Row {data-height="900"}
 
 ### All patients
 
@@ -87,40 +174,12 @@ reactive_df() %>%
 
 # Analysis
 
-## Column
-
-### Total number of patients
+## Row {data-height="100"}
 
 ```{r}
-nbPatients <-nrow(raw_data)
-valueBox(nbPatients, icon = "fa-heartbeat")
-```
 
-### Total number of features
+tags$h3("Analysis and summary of different variables")
 
-```{r}
-nbFeatures <-ncol(raw_data)
-valueBox(nbFeatures, icon = "fa-stethoscope")
-```
-
-## Row
-
-### Male percentage of sick patients
-
-```{r}
-rate <- 15
-gauge(rate, min = 0, max = 100, symbol = '%', gaugeSectors(
-  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
-))
-```
-
-### Female percentage of sick patients
-
-```{r}
-rating <- 10
-gauge(rating, min = 0, max = 50, gaugeSectors(
-  success = c(41, 50), warning = c(21, 40), danger = c(0, 20)
-))
 ```
 
 ## Row {data-height="350"}
@@ -243,15 +302,189 @@ reactive_df()%>%select(input$input_categorical) %>%summary()%>%
 
 ```
 
-
-
-
-
-
-
-
-
-
 # Comparison
 
-## Row
+## Row {data-height="100"}
+
+```{r}
+
+tags$h3("Comparaison between Population A and B : ")
+
+```
+## Row {data-height="320"}
+
+
+### Population A : 
+
+```{r}
+fillCol(height = 300, flex = c(NA, 1), 
+  inputPanel(
+    dropdown(
+      
+      pickerInput(inputId = 'compare_variable',
+            label = 'Select Variable',
+            choices = categorical_cols,
+            selected = "patient_gender",
+            options = list(`style` = "btn-warning")),
+
+      pickerInput(inputId = 'group_variable',
+                  label = 'Group by',
+                  choices = categorical_cols,
+                  selected="pregnant",
+                  options = list(`style` = "btn-info")),
+  
+
+  
+      style = "unite", icon = icon("gear"),
+      status = "danger", width = "300px",
+      animate = animateOptions(
+        enter = animations$fading_entrances$fadeInLeftBig,
+        exit = animations$fading_exits$fadeOutRightBig
+      )
+    ),
+  
+  ),
+  plotOutput("populationA", height = "100%")
+)
+
+output$populationA <- renderPlot({
+
+ggplot(data=reactive_df(),aes_string(x=input$compare_variable,color=input$group_variable,fill=input$group_variable))+
+    geom_bar(aes(y=(..count..)),alpha=0.5,position="identity")+theme_light()
+})
+
+
+
+```
+### Population B : 
+
+```{r}
+fillCol(height = 300, flex = c(NA, 1), 
+  inputPanel(
+    dropdown(
+      
+      pickerInput(inputId = 'compare_variable2',
+            label = 'Select Variable',
+            choices = categorical_cols,
+            selected = "patient_gender",
+            options = list(`style` = "btn-warning")),
+
+      pickerInput(inputId = 'group_variable2',
+                  label = 'Group by',
+                  choices = categorical_cols,
+                  selected="sick",
+                  options = list(`style` = "btn-info")),
+  
+
+  
+      style = "unite", icon = icon("gear"),
+      status = "danger", width = "300px",
+      animate = animateOptions(
+        enter = animations$fading_entrances$fadeInLeftBig,
+        exit = animations$fading_exits$fadeOutRightBig
+      )
+    ),
+  
+  ),
+  plotOutput("populationB", height = "100%")
+)
+
+output$populationB <- renderPlot({
+
+ggplot(data=reactive_df(),aes_string(x=input$compare_variable2,color=input$group_variable2,fill=input$group_variable2))+
+    geom_bar(aes(y=(..count..)),alpha=0.5,position="identity")+theme_light()
+})
+
+
+
+```
+
+
+## Row {data-height="300"}
+
+
+### Population A : 
+
+```{r}
+fillCol(height = 300, flex = c(NA, 1), 
+  inputPanel(
+    dropdown(
+      
+      pickerInput(inputId = 'compare_variable_n',
+            label = 'Select Variable',
+            choices = numerical_cols,
+            selected = "patient_gender",
+            options = list(`style` = "btn-warning")),
+
+      pickerInput(inputId = 'group_variable_n',
+                  label = 'Group by',
+                  choices = categorical_cols,
+                  selected="pregnant",
+                  options = list(`style` = "btn-info")),
+  
+      style = "unite", icon = icon("gear"),
+      status = "danger", width = "300px",
+      animate = animateOptions(
+        enter = animations$fading_entrances$fadeInLeftBig,
+        exit = animations$fading_exits$fadeOutRightBig
+      )
+    ),
+  
+  ),
+  plotOutput("populationC", height = "100%")
+)
+
+output$populationC <- renderPlot({
+
+ggplot(reactive_df(),aes_string(x=input$compare_variable_n,color=input$group_variable_n,fill=input$group_variable_n))+
+            geom_histogram(aes(y=..density..),alpha=0.5,position="identity")+
+            geom_density(alpha=.2)+theme_gdocs()
+})
+
+
+
+```
+### Population B : 
+
+```{r}
+fillCol(height = 300, flex = c(NA, 1), 
+  inputPanel(
+    dropdown(
+      
+      pickerInput(inputId = 'compare_variable_n_2',
+            label = 'Select Variable',
+            choices = numerical_cols,
+            selected = "patient_gender",
+            options = list(`style` = "btn-warning")),
+
+      pickerInput(inputId = 'group_variable_n_2',
+                  label = 'Group by',
+                  choices = categorical_cols,
+                  selected="sick",
+                  options = list(`style` = "btn-info")),
+  
+
+  
+      style = "unite", icon = icon("gear"),
+      status = "danger", width = "300px",
+      animate = animateOptions(
+        enter = animations$fading_entrances$fadeInLeftBig,
+        exit = animations$fading_exits$fadeOutRightBig
+      )
+    ),
+  
+  ),
+  plotOutput("populationD", height = "100%")
+)
+
+output$populationD<- renderPlot({
+
+ggplot(reactive_df(),aes_string(x=input$compare_variable_n_2,color=input$group_variable_n_2,fill=input$group_variable_n_2))+
+            geom_histogram(aes(y=..density..),alpha=0.5,position="identity")+
+            geom_density(alpha=.2)+theme_gdocs()
+})
+
+
+
+```
+
