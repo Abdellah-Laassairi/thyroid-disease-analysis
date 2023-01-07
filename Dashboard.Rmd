@@ -30,6 +30,8 @@ library(splitstackshape)
 library(ggthemes)
 library(purrr)
 library(tidyr)
+library(naniar)
+library(fmsb)
 
 
 #bslib::bs_themer()
@@ -44,16 +46,19 @@ raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
 
 raw_data$ThryroidClass=as.factor(raw_data$ThryroidClas)
 categorical_cols=c('patient_gender','presc_thyroxine','queried_why_on_thyroxine','presc_anthyroid_meds','sick','pregnant',
-              'radioactive_iodine_therapyI131','query_hypothyroid','query_hyperthyroid','lithium','goitre','tumor',
-              'hypopituitarism','psych_condition', 'thyrox_util_rate_T4U_measured','FTI_measured')
+              'radioactive_iodine_therapyI131','query_hyperthyroid','lithium','goitre','tumor'
+              
+              ,
+              'hypopituitarism','psych_condition','TSH_measured','T3_measured','T4_measured','thyrox_util_rate_T4U_measured','FTI_measured'
+              
+              )
 
-numerical_cols=c('patient_age','TSH_measured','TSH_reading','T3_measured','T3_reading','T4_measured','T4_reading',
-                 'thyrox_util_rate_T4U_measured','thyrox_util_rate_T4U_reading','FTI_measured','FTI_reading')
+numerical_cols=c('patient_age','TSH_reading','T3_reading','T4_reading','thyrox_util_rate_T4U_reading','FTI_reading')
 
 
 raw_data$patient_age<-as.numeric(raw_data$patient_age)
 raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
-
+raw_data<-subset(raw_data, select = -c(ref_src))
 ```
 
 ```{r}
@@ -78,9 +83,7 @@ awesomeCheckboxGroup(
    inline = FALSE, 
     status = "danger"
 )
-observe(
-  print(input$input_gender)
-)
+
 ```
 
 ```{r}
@@ -156,12 +159,87 @@ valueBox(nbPatients <-ncol(reactive_df()), icon = 'fas fa-stethoscope')
 )
 ```
 
-## Row {data-height="900"}
+## Row {data-height="300"}
+
+### Selected patients 
+```{r}
+
+renderPlotly({
+  selected <- input$responses_rows_selected
+  data<-reactive_df()[selected,]
+  fig <- plot_ly(
+      type = 'scatterpolar',
+      fill = 'toself'
+    ) 
+
+  data = subset(data, select = numerical_cols)
+
+  if(nrow(data)>0)
+   for(i in 1:nrow(data)){
+      fig <- fig %>%
+        add_trace(
+          r = unname(slice(data, i)),
+          theta = numerical_cols,
+          name = paste('Patient',i)
+        ) 
+ }
+fig <- fig %>%
+  layout(
+    polar = list(
+      radialaxis = list(
+        visible = T,
+        range = c(0,100)
+      )
+    )
+  )%>% config(displayModeBar = F)
+fig
+})
+```
+### Radar Plot
+```{r}
+
+renderPlotly({
+  selected <- input$responses_rows_selected
+  data<-reactive_df()[selected,]
+  fig <- plot_ly(
+      type = 'scatterpolar',
+      fill = 'toself'
+    ) 
+
+  data = subset(data, select = categorical_cols)
+  print(data)
+
+  if(nrow(data)>0)
+   for(i in 1:nrow(data)){
+      print("inside")
+      print(unname(slice(data, i)
+))
+      fig <- fig %>%
+        add_trace(
+          r = unname(slice(data, i)),
+          theta = categorical_cols,
+          name = paste('Patient',i)
+        ) 
+ }
+fig <- fig %>%
+  layout(
+    polar = list(
+      radialaxis = list(
+        visible = T,
+        range = c(0,1)
+      )
+    )
+  )%>% config(displayModeBar = F)
+fig
+})
+```
+## Row {data-height="700"}
 
 ### All patients
 
 ```{r}
-renderDT(
+DT::dataTableOutput("responses")
+output$responses <- DT::renderDataTable(
 
 reactive_df() %>%
   datatable(options = list(
@@ -173,6 +251,70 @@ reactive_df() %>%
 ```
 
 # Analysis
+## Row {data-height="120"}
+
+### Number of Variables with missing values
+
+```{r}
+ 
+calculate<- function(df){
+  
+  n<-0
+  for(i in 1:ncol(sapply(df, function(x) is.na(x)))){
+    if (sum(sapply(df, function(x) is.na(x))[,i])>0)
+      n<-n+1
+  }
+  return(n)
+}
+
+renderValueBox(
+
+valueBox(5, icon = "fa-user-md")
+)
+
+```
+
+### Number of missing observations
+
+```{r}
+renderValueBox(
+valueBox(n_miss(reactive_df()), icon = "fa-heartbeat")
+)
+```
+
+### Number of complete observations
+
+```{r}
+renderValueBox(
+valueBox(nbPatients <-n_complete(reactive_df()), icon = 'fas fa-stethoscope')
+)
+```
+
+
+## Row {data-height="370"}
+
+### Missing values across factors
+```{r}
+renderPlotly({
+  #p<-gg_miss_upset(reactive_df())
+  #ggplotly(p)%>% config(displayModeBar = F)
+  p<-gg_miss_fct(reactive_df(), patient_gender)+ #(title = paste("NA in Thyroid data and","patient_gender"))+
+     theme(axis.title.y=element_blank(),
+        #axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+  ggplotly(p)%>% config(displayModeBar = F)
+
+
+
+})
+```
+
+### Missing  values for each variable
+```{r}
+renderPlot({
+  gg_miss_var(reactive_df())
+})
+```
 
 ## Row {data-height="100"}
 
@@ -197,6 +339,7 @@ ggplotly(p)%>% config(displayModeBar = F)
 })
 
 ```
+
 
 ### Insights
 
@@ -302,6 +445,7 @@ reactive_df()%>%select(input$input_categorical) %>%summary()%>%
 
 ```
 
+
 # Comparison
 
 ## Row {data-height="100"}
@@ -403,7 +547,7 @@ ggplot(data=reactive_df(),aes_string(x=input$compare_variable2,color=input$group
 ## Row {data-height="300"}
 
 
-### Population A : 
+### Population C : 
 
 ```{r}
 fillCol(height = 300, flex = c(NA, 1), 
@@ -444,7 +588,7 @@ ggplot(reactive_df(),aes_string(x=input$compare_variable_n,color=input$group_var
 
 
 ```
-### Population B : 
+### Population D : 
 
 ```{r}
 fillCol(height = 300, flex = c(NA, 1), 
@@ -487,4 +631,3 @@ ggplot(reactive_df(),aes_string(x=input$compare_variable_n_2,color=input$group_v
 
 
 ```
-

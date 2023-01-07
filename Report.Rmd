@@ -20,16 +20,23 @@ head(df)
 ```
 
 ```{r}
+raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
 head(df)
 ```
 
 ```{r}
-summary(df)
-```
+raw_data$ThryroidClass=factor(raw_data$ThryroidClas)
+categorical_cols=c('patient_gender','presc_thyroxine','queried_why_on_thyroxine','presc_anthyroid_meds','sick','pregnant',
+              'radioactive_iodine_therapyI131','query_hypothyroid','query_hyperthyroid','lithium','goitre','tumor',
+              'hypopituitarism','psych_condition', 'thyrox_util_rate_T4U_measured','FTI_measured')
 
-```{r}
+numerical_cols=c('patient_age','TSH_measured','TSH_reading','T3_measured','T3_reading','T4_measured','T4_reading',
+                 'thyrox_util_rate_T4U_measured','thyrox_util_rate_T4U_reading','FTI_measured','FTI_reading')
 
-fig
+
+raw_data$patient_age<-as.numeric(raw_data$patient_age)
+raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
+print(a)
 
 ```
 
