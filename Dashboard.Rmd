@@ -271,7 +271,7 @@ valueBox(nbPatients <-ncol(reactive_df()), icon = 'fas fa-stethoscope')
 
 ## Row {data-height="300"}
 
-### Selected patients 
+### Numerical features of selected patients
 ```{r}
 
 renderPlotly({
@@ -279,7 +279,11 @@ renderPlotly({
   data<-reactive_df()[selected,]
   fig <- plot_ly(
       type = 'scatterpolar',
-      fill = 'toself'
+      fill = "toself",
+      r=NA,
+      name=NA,
+
+      theta = numerical_cols,
     ) 
 
   data = subset(data, select = numerical_cols)
@@ -314,11 +318,14 @@ renderPlotly({
   data<-reactive_df()[selected,]
   fig <- plot_ly(
       type = 'scatterpolar',
-      fill = 'toself'
+      fill = "toself",
+      r=NA,
+      name=NA,
+      theta = categorical_cols,
+
     ) 
 
   data = subset(data, select = categorical_cols)
-  print(data)
 
   if(nrow(data)>0)
    for(i in 1:nrow(data)){
