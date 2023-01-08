@@ -20,6 +20,7 @@ library(stringr)
 library(ggplot2)
 library(dplyr)
 library(plotly)
+library(simputation)
 library(insight)
 library(data.table)
 library(qwraps2)
@@ -33,14 +34,12 @@ library(tidyr)
 library(naniar)
 library(fmsb)
 
-
-#bslib::bs_themer()
-
 ```
 
 # Sidebar {.sidebar}
 
 ```{r}
+# Preprocessing the data
 
 raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
 
@@ -57,15 +56,24 @@ numerical_cols=c('patient_age','TSH_reading','T3_reading','T4_reading','thyrox_u
 
 
 raw_data$patient_age<-as.numeric(raw_data$patient_age)
+raw_data$FTI_reading<-as.numeric(raw_data$FTI_reading)
+
 raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
 raw_data<-subset(raw_data, select = -c(ref_src))
+
+#
+
+
+
 ```
 
 ```{r}
 # Define inputs
+selectInput('input_imputation', label = 'Select Imputation', choices = c('None','impute_cart', 'impute_median'=0, 'impute_rlm'=1,'impute_lm'), selected = 'None')
+
 selectInput('input_gender', label = 'Select Gender', choices = c('Both'=-1, 'Male'=0, 'Female'=1), selected = 'All')
 
-sliderInput('input_age', label = 'Select Age Range', min = 1, max = 94, value = 50, 
+sliderInput('input_age', label = 'Select Age Range', min = 0, max = 120, value = 50, 
             step = 1)
 
 awesomeCheckboxGroup(
@@ -84,50 +92,152 @@ awesomeCheckboxGroup(
     status = "danger"
 )
 
+
+
+
 ```
 
 ```{r}
+# Reactive DataFrame based on the inputs
 
-reactive_df <- reactive(
-  
-  if(length(input$sick)==1)
-    if (length(input$tumor)==1 )
+reactive_df_imputed <- reactive(
+    if(input$input_imputation!="impute_cart")
+      raw_data<-impute_cart(raw_data, patient_age+TSH_reading+FTI_reading+T3_reading+T4_reading+thyrox_util_rate_T4U_reading ~ ., add_residual = "normal")
+    else 
+      if(input$input_imputation!="impute_lm")
+        raw_data<-impute_lm(raw_data, patient_age+TSH_reading+FTI_reading+T3_reading+T4_reading+thyrox_util_rate_T4U_reading ~ patient_gender+goitre+tumor+sick, add_residual = "normal")
+      else
+         if(input$input_imputation!="impute_rlm")
+            raw_data<-impute_rlm(raw_data,patient_age+ TSH_reading+FTI_reading+T3_reading+T4_reading+thyrox_util_rate_T4U_reading ~ patient_gender+goitre+tumor+sick, add_residual = "normal")
+         else
+            raw_data<-impute_mean(raw_data,patient_age+ TSH_reading+FTI_reading+T3_reading+T4_reading+thyrox_util_rate_T4U_reading ~ patient_gender, add_residual = "normal")
+)
+
+reactive_df_NA <-reactive(
+   if(length(input$sick)==1)
+      if (length(input$tumor)==1 )
+          
+          if(input$input_gender==-1)
+            raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age,tumor==input$tumor, sick==input$sick )
+          else
+            raw_data<-raw_data %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor,sick==input$sick )
+      
+        else
+              
+          if(input$input_gender==-1)
+            raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age,sick==input$sick  )
+          else
+            raw_data<-raw_data %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,sick==input$sick )
+    else 
+      
+      if (length(input$tumor)==1 )
         
         if(input$input_gender==-1)
           raw_data<-raw_data %>% 
-          filter(patient_age <= input$input_age,tumor==input$tumor, sick==input$sick )
+          filter(patient_age <= input$input_age,tumor==input$tumor )
         else
           raw_data<-raw_data %>% 
-            filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor,sick==input$sick )
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor)
     
       else
             
         if(input$input_gender==-1)
           raw_data<-raw_data %>% 
-          filter(patient_age <= input$input_age,sick==input$sick  )
+          filter(patient_age <= input$input_age )
         else
           raw_data<-raw_data %>% 
-            filter(patient_age <= input$input_age, patient_gender==input$input_gender,sick==input$sick )
-  else 
-    
-    if (length(input$tumor)==1 )
-      
-      if(input$input_gender==-1)
-        raw_data<-raw_data %>% 
-        filter(patient_age <= input$input_age,tumor==input$tumor )
-      else
-        raw_data<-raw_data %>% 
-          filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor)
-  
-    else
-          
-      if(input$input_gender==-1)
-        raw_data<-raw_data %>% 
-        filter(patient_age <= input$input_age )
-      else
-        raw_data<-raw_data %>% 
-          filter(patient_age <= input$input_age, patient_gender==input$input_gender)
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender)
 )
+
+reactive_df_NA <- reactive(
+    if(length(input$sick)==1)
+      if (length(input$tumor)==1 )
+          
+          if(input$input_gender==-1)
+            raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age,tumor==input$tumor, sick==input$sick )
+          else
+            raw_data<-raw_data %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor,sick==input$sick )
+      
+        else
+              
+          if(input$input_gender==-1)
+            raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age,sick==input$sick  )
+          else
+            raw_data<-raw_data %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,sick==input$sick )
+    else 
+      
+      if (length(input$tumor)==1 )
+        
+        if(input$input_gender==-1)
+          raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age,tumor==input$tumor )
+        else
+          raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor)
+    
+      else
+            
+        if(input$input_gender==-1)
+          raw_data<-raw_data %>% 
+          filter(patient_age <= input$input_age )
+        else
+          raw_data<-raw_data %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender)
+  )
+
+reactive_df <- reactive(
+  if(input$input_imputation!="None")
+   if(length(input$sick)==1)
+      if (length(input$tumor)==1 )
+          
+          if(input$input_gender==-1)
+            raw_data<-  reactive_df_imputed() %>% 
+            filter(patient_age <= input$input_age,tumor==input$tumor, sick==input$sick )
+          else
+            raw_data<-reactive_df_imputed() %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor,sick==input$sick )
+      
+        else
+              
+          if(input$input_gender==-1)
+            raw_data<-reactive_df_imputed() %>% 
+            filter(patient_age <= input$input_age,sick==input$sick  )
+          else
+            raw_data<-reactive_df_imputed() %>% 
+              filter(patient_age <= input$input_age, patient_gender==input$input_gender,sick==input$sick )
+    else 
+      
+      if (length(input$tumor)==1 )
+        
+        if(input$input_gender==-1)
+          raw_data<-reactive_df_imputed() %>% 
+          filter(patient_age <= input$input_age,tumor==input$tumor )
+        else
+          raw_data<-reactive_df_imputed() %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender,tumor==input$tumor)
+    
+      else
+            
+        if(input$input_gender==-1)
+          raw_data<-reactive_df_imputed() %>% 
+          filter(patient_age <= input$input_age )
+        else
+          raw_data<-reactive_df_imputed() %>% 
+            filter(patient_age <= input$input_age, patient_gender==input$input_gender)
+            
+  else
+    raw_data<-reactive_df_NA()
+   
+  )
+
 ```
 
 # Patients
@@ -195,7 +305,8 @@ fig <- fig %>%
 fig
 })
 ```
-### Radar Plot
+
+### Categorical features of selected patients
 ```{r}
 
 renderPlotly({
@@ -235,7 +346,7 @@ fig
 ```
 ## Row {data-height="700"}
 
-### All patients
+### All patients (Imputed or missing values are colored in red)
 
 ```{r}
 DT::dataTableOutput("responses")
@@ -245,7 +356,7 @@ reactive_df() %>%
   datatable(options = list(
     pageLength=9
   ),
-            class = "cell-border compact hover order-column")
+            class = "cell-border compact hover order-column")%>% formatStyle(names(reactive_df()), backgroundColor = styleEqual(c(NA), c('rgb(255,63,63)')))
 
 )
 ```
@@ -269,7 +380,7 @@ calculate<- function(df){
 
 renderValueBox(
 
-valueBox(5, icon = "fa-user-md")
+valueBox(calculate(reactive_df()), icon = "fas fa-database")
 )
 
 ```
@@ -278,7 +389,7 @@ valueBox(5, icon = "fa-user-md")
 
 ```{r}
 renderValueBox(
-valueBox(n_miss(reactive_df()), icon = "fa-heartbeat")
+valueBox(n_miss(reactive_df()), icon = "fa fa-square-o")
 )
 ```
 
@@ -286,7 +397,7 @@ valueBox(n_miss(reactive_df()), icon = "fa-heartbeat")
 
 ```{r}
 renderValueBox(
-valueBox(nbPatients <-n_complete(reactive_df()), icon = 'fas fa-stethoscope')
+valueBox(nbPatients <-n_complete(reactive_df()), icon = 'fa fa-check-square-o')
 )
 ```
 
@@ -324,15 +435,16 @@ tags$h3("Analysis and summary of different variables")
 
 ```
 
-## Row {data-height="350"}
+## Row {data-height="400"}
 
 ### Numerical Variable :
 
 ```{r}
 
 renderPlotly({
+data<-reactive_df()%>% bind_shadow()
 
-p<-ggplot(reactive_df(),aes_string(x=input$input_numerical,color=input$input_numerical,fill='patient_gender'))+
+p<-ggplot(data,aes_string(x=input$input_numerical,color=input$input_numerical,fill=input$input_1))+
             geom_histogram(aes(y=..density..),alpha=0.5,position="identity")+
             geom_density(alpha=.2)+theme_gdocs()
 ggplotly(p)%>% config(displayModeBar = F)
@@ -346,6 +458,9 @@ ggplotly(p)%>% config(displayModeBar = F)
 ```{r}
 
 selectInput('input_numerical', label = 'Select Numerical variable', choices = numerical_cols, selected = 'patient_age')
+
+choices =c(categorical_cols,as.character(sapply(numerical_cols, function(x) paste(x,"_NA", sep=""))))
+selectInput('input_1', label = 'Select Group by variable', choices = choices, selected = 'patient_gender')
 
 id='name'
 value=sum(is.na(raw_data$patient_age))
@@ -389,18 +504,20 @@ reactive_df()%>%select(input$input_numerical) %>%summary()%>%
 
     class = "cell-border compact hover order-column")
 
-)
+) 
 
 ```
 
-## Row {data-height="270"}
+## Row {data-height="350"}
 
 ### Categorical Variable :
 
 ```{r}
 
 renderPlotly({
-p<-ggplot(data=reactive_df(),aes_string(x=input$input_categorical, color=input$input_categorical, fill=input$input_categorical))+
+data<-reactive_df()%>% bind_shadow()
+
+p<-ggplot(data=data,aes_string(x=input$input_categorical, color=input$input_2, fill=input$input_2))+
             geom_bar(aes(y=(..count..)),alpha=0.5,position="identity")+theme_gdocs()
 ggplotly(p)%>% config(displayModeBar = F)
 })
@@ -410,6 +527,10 @@ ggplotly(p)%>% config(displayModeBar = F)
 
 ```{r}
 selectInput('input_categorical', label = 'Select Categorical variable', choices = categorical_cols, selected = 'patient_gender')
+
+choices =c(categorical_cols,as.character(sapply(categorical_cols, function(x) paste(x,"_NA", sep=""))))
+
+selectInput('input_2', label = 'Select Group by variable', choices = choices, selected = 'patient_gender')
 
 id='name'
 value=sum(is.na(raw_data$patient_gender))
