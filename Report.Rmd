@@ -1,47 +1,292 @@
 ---
-title: "Thyroid Analysis dashboard"
+title: "Thyroid predictors importance"
 author: "LAASSAIRI Abdellah"
-date: "2022-12-17"
+output:
+ html_document:
+  theme: lumen
+  highlight: tango
+  number_sections: yes
+  toc: yes
+  code_folding: show
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
-```{r setup, include=FALSE}
-library(flexdashboard)
-library(shiny)
-library(stringr)
+In this report, we will try to understand the important predictors to
+build a model and predict patients with Thyroid disease.
+
+# Data preprocessing and EDA {.tabset}
+
+## Libraries
+
+-   tidyverse
+-   mltools
+-   caret
+-   ggplot2
+-   ggcorrplot
+-   kernlab
+-   data.table
+-   simputation
+-   FactoMineR
+-   DT
+-   data.table
+-   glmnet
+-   xgboost
+-   Boruta
+
+```{r library, warning=FALSE,message=FALSE}
+library(tidyverse)
+library(mltools)
+library(caret)
+library(ggcorrplot)
+library(kernlab)
 library(ggplot2)
-library(dplyr)
-library(plotly)
+library(data.table)
+library(simputation)
+library(FactoMineR)
+library(factoextra)
+library(DT)
+library(data.table)
+library(glmnet)
+library(xgboost)
+library(Boruta)
+
+
+```
+
+## Import data
+
+```{r read_data_set,message = FALSE}
+thyroid=read.csv("data/thyroid.csv")
+```
+
+## Data Summary
+
+```{r}
+summary(thyroid)
+```
+
+Thanks to the summary() method we can extract a lot of useful
+information: First of all, we can see that 218 out of 3772 patients are
+ill, which is a disease rate of 5.77%. We also find that the majority of
+the patients are women with a number equal to 1764 among 3772 patients.
+We can also read that only 44 of the patients have already had a therapy
+on radioactive iodine.
+
+# Data Analysis and Feature Selection {.tabset}
+
+Predictor 'ref_src' so we're going to drop it. Lets normalize data to
+understand the relationship between these features. If there any
+variables are repeating or have less importance then I will drop those
+features from analysis.
+
+## Data Imputation & cleaning
+
+We will cast the numeric feature using the as.numeric function, and
+convert the TryoidClass target to factor, for missing values we're going
+to use the simputation library and use the cart based imputation, as
+most of the missing values are from numerical variables (only 5 features
+have missing values)
+
+```{r}
+
+thyroid$ThryroidClass=factor(thyroid$ThryroidClas)
+
+numerical_cols=c('patient_age','TSH_reading','T3_reading','T4_reading','thyrox_util_rate_T4U_reading','FTI_reading')
+
+thyroid[numerical_cols] <- lapply(thyroid[numerical_cols], as.numeric)
+thyroid.clean <- thyroid %>% select(-c(ref_src))
+
+
+thyroid.clean<-impute_cart(thyroid.clean, patient_age+TSH_reading+FTI_reading+T3_reading+T4_reading+thyrox_util_rate_T4U_reading ~ ., add_residual = "normal")
+```
+
+## Normalize Data
+
+```{r}
+
+
+normalize <- function(x){
+  return (( x - min(x))/(max(x) -min(x)))
+}  
+thyroid.clean.normalized <- as.data.frame(
+  lapply(thyroid.clean[,2:27],normalize)
+  )  
+thyroid.clean.normalized <- cbind(
+  thyroid.clean[,1],
+  thyroid.clean.normalized
+  )
+names(thyroid.clean.normalized)[1] <- "diagnosis"
+
+
+
+summary(thyroid.clean.normalized)
+
+```
+
+## Density plots of data across variables
+
+```{r}
+thyroid.clean.normalized %>% na.omit() %>%
+  gather(type,value,2:27) %>%
+  ggplot(aes(x=value,fill=diagnosis))+geom_density(alpha=0.3)+facet_wrap(~type,scales="free")+theme(axis.text.x = element_text(angle = 90,vjust=1))+labs(title="Density Plots of Data across Variables")
+```
+
+# Predictors importance {.tabset}
+
+As we've come across during our studies course there are two Predictors
+(feature importance) methods :
+
+-   Forward selection, which involves starting with no variables in the
+    model, testing the addition of each variable using a chosen model
+    fit criterion, adding the variable (if any) whose inclusion gives
+    the most statistically significant improvement of the fit, and
+    repeating this process until none improves the model to a
+    statistically significant extent.
+
+-   Backward elimination, which involves starting with all candidate
+    variables, testing the deletion of each variable using a chosen
+    model fit criterion, deleting the variable (if any) whose loss gives
+    the most statistically insignificant deterioration of the model fit,
+    and repeating this process until no further variables can be deleted
+    without a statistically significant loss of fit.
+
+In this use case since our predictors / feature space is small (27
+predictors) we can use heavy computational methods \## Predictors
+importance by Subset selection :
+
+## Predictors importance by PCA
+
+We've seen in class that Variables correlating with Dim.1 (PC1) and
+Dim.2 (PC2) are the most important to explain the variability in the
+data set, we also saw that Variables that do not correlate with any PC
+or only with the last ones are variables might be removed to simplify
+the overall analysis.
+
+```{r}
+res<-PCA(X = thyroid.clean.normalized[,2:27], graph = FALSE)
+eig_value<-get_eigenvalue(res)
+datatable(eig_value)
+```
+
+```{r}
+fviz_screeplot(res, addlabels = TRUE)
+```
+
+```{r}
+fviz_contrib(
+ X = res,
+ choice = "var",
+ axes = 1,
+ top = 10
+)
+```
+
+We can notice that T4_reading, T3_reading, FTI_reading and
+thyrox_util_rate_T4U_reading are the one most contributing to the first
+PC.
+
+```{r}
+factoextra::fviz_contrib(
+ X = res,
+ choice = "var",
+ axes = 2,
+ top = 10
+)
+```
+
+For the case of the second PC, FTI_measured, T4_measured and
+TSH_measured, as well as thyrox_til_rate_T4U_measured are the variables
+most contributing to it.
+
+## Predictors importance by Learning Vector quantization (LVQ)
+
+Learning vector quantization (LVQ) is a prototype-based supervised
+classification, we will use the varImp to estimate the variable
+importance, and then we will print and plot it.
+
+```{r}
+control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+model <- train(diagnosis ~ ., 
+               data = thyroid.clean.normalized, 
+               method = "lvq",
+               preProcess = "scale",
+               trControl = control
+               )
+importance <- varImp(model, scale = FALSE)
+print(importance)
+plot(importance)
+```
+
+The most important feature from the previous model is T3_reading
+
+## Predictors importance by Xgboost :
+
+XGBoost stands for Extreme Gradient Boosting, is a scalable, distributed
+gradient-boosted decision tree (GBDT) based model.
+
+```{r}
+data<-thyroid.clean.normalized
+data$diagnosis = as.numeric(data$diagnosis)-1
+
+head(data)
+parts = createDataPartition(data$diagnosis, p = .8, list = F)
+train = data[parts, ]
+test = data[-parts, ]
+
+#define predictor and response variables in training set
+train_x = data.matrix(train[, -1])
+train_y = train[,1]
+
+#define predictor and response variables in testing set
+test_x = data.matrix(test[, -1])
+test_y = test[, 1]
+
+#define final training and testing sets
+xgb_train = xgb.DMatrix(data = train_x, label = train_y)
+xgb_test = xgb.DMatrix(data = test_x, label = test_y)
+
+
+
+
+#defining a watchlist
+watchlist = list(train=xgb_train, test=xgb_test)
+
+#fit XGBoost model and display training and testing data at each iteartion
+model = xgb.train(data = xgb_train, max.depth = 3, objective = "binary:logistic", watchlist=watchlist, nrounds = 100)
 
 ```
 
 ```{r}
-df=read.csv("data/thyroid.csv")
-head(df)
+# Compute feature importance matrix
+importance_matrix = xgb.importance(colnames(xgb_train), model = model)
+importance_matrix
 ```
 
 ```{r}
-raw_data=read.csv("/home/odeck/Desktop/SDR/Project/data/thyroid.csv")
-head(df)
+xgb.plot.importance(importance_matrix[1:10,])
+```
+
+## Predictors importance by Boruta
+
+Boruta is a feature selection that as a wrapper algorithm around Random
+Forest.
+
+```{r}
+set.seed(13)
+bor.results <- Boruta(thyroid.clean.normalized[,2:27],thyroid.clean.normalized[,1],
+                   maxRuns=101,
+                   doTrace=0)
 ```
 
 ```{r}
-raw_data$ThryroidClass=factor(raw_data$ThryroidClas)
-categorical_cols=c('patient_gender','presc_thyroxine','queried_why_on_thyroxine','presc_anthyroid_meds','sick','pregnant',
-              'radioactive_iodine_therapyI131','query_hypothyroid','query_hyperthyroid','lithium','goitre','tumor',
-              'hypopituitarism','psych_condition', 'thyrox_util_rate_T4U_measured','FTI_measured')
-
-numerical_cols=c('patient_age','TSH_measured','TSH_reading','T3_measured','T3_reading','T4_measured','T4_reading',
-                 'thyrox_util_rate_T4U_measured','thyrox_util_rate_T4U_reading','FTI_measured','FTI_reading')
-
-
-raw_data$patient_age<-as.numeric(raw_data$patient_age)
-raw_data[categorical_cols] <- lapply(raw_data[categorical_cols], factor)
-print(a)
-
+plot(bor.results)
 ```
 
-------------------------------------------------------------------------
+# Conclusion {.tabset}
 
-Column {data-width=650}
-
-### Chart A
+There are several methods to determine the best predictor for a certain
+target, for this specific classification task and data set, we've
+determined that the T3_reading is the most important predictor for
+thyroid disease.
